@@ -84,14 +84,14 @@ def main():
 
         clean_output_directory()
 
-        setup_chromium_depot_tools(nw_version)
-
         nw_deps = urllib2.urlopen('https://raw.githubusercontent.com/nwjs/nw.js/nw-v{}/DEPS'.format(nw_version))
         match = re.search(r"'nw_src_revision'\s*:\s*'([0-9a-fA-F]+)'", nw_deps.read())
         if not match:
             print_error('Error finding chromium.src version matching nw.js version {}'.format(nw_version))
             sys.exit(1)
         nw_src_revision = match.group(1)
+
+        setup_chromium_depot_tools(nw_version, nw_src_revision)
 
         clone_chromium_source_code(nw_version)
 
@@ -105,8 +105,6 @@ def main():
 
         check_build_with_proprietary_codecs(proprietary_codecs, host_platform, target_arch)
 
-        patch_linux_sanitizer_ia32(target_cpu)
-
         build(target_cpu)
 
         zip_release_output_library(nw_version, platform_release_name, target_arch, proprietary_codecs, get_out_library_path(host_platform), PATH_RELEASES)
@@ -118,18 +116,6 @@ def main():
     except Exception:
         print_error (traceback.format_exc())
         sys.exit(1)
-
-
-def patch_linux_sanitizer_ia32(target_cpu):
-    host_platform = get_host_platform()
-    if host_platform == 'linux':
-        oldpath = os.getcwd()
-        os.chdir(PATH_THIRD_PARTY_FFMPEG)
-        os.system('git reset --hard')
-        if target_cpu == 'x86':
-            shutil.copy(os.path.join(PATH_BASE, 'patch', host_platform, 'sanitizer_ia32.patch'), os.getcwd())
-            os.system('git apply --ignore-space-change --ignore-whitespace sanitizer_ia32.patch')
-        os.chdir(oldpath)
 
 
 def parse_args():
@@ -226,7 +212,7 @@ def clean_output_directory():
     shutil.rmtree(PATH_OUT, ignore_errors=True)
 
 
-def setup_chromium_depot_tools(nw_version):
+def setup_chromium_depot_tools(nw_version, nw_src_revision):
     os.chdir(PATH_BUILD)
     if not os.path.isdir(os.path.join(PATH_DEPOT_TOOLS, '.git')):
         print_info('Cloning Chromium depot tools in {0}...'.format(os.getcwd()))
@@ -241,13 +227,14 @@ def setup_chromium_depot_tools(nw_version):
         os.environ["GYP_MSVS_VERSION"] = '2017'
 
     print_info('Creating .gclient file...')
-    subprocess.check_call('gclient config --unmanaged --name=src https://github.com/nwjs/chromium.src.git@tags/nw-v{0}'.format(nw_version), shell=True)
+    subprocess.check_call('gclient config --unmanaged --name=src https://github.com/nwjs/chromium.src.git@{0}'.format(nw_src_revision), shell=True)
 
 
 def clone_chromium_source_code(nw_version):
     os.chdir(PATH_BUILD)
     print_info('Cloning Chromium source code in {}'.format(os.getcwd()))
-    os.system('git clone --single-branch {} src'.format('https://github.com/nwjs/chromium.src.git'))
+    #os.system('git clone --single-branch {} src'.format('https://github.com/nwjs/chromium.src.git'))
+    os.system('git clone --single-branch {} src'.format('/srv'))
 
 
 def reset_chromium_src_to_nw_version(nw_version, nw_src_revision):
@@ -434,11 +421,9 @@ def get_min_hooks():
 
 def install_build_deps():
     os.chdir(PATH_SRC_BUILD)
-    if platform.system() == 'Linux' and not os.path.isfile('buid_deps.ok'):
+    if platform.system() == 'Linux' and not os.path.isfile('build_deps.ok'):
         print_info('Installing build dependencies...')
-        os.system('./install-build-deps.sh --no-prompt --no-nacl --no-chromeos-fonts --no-syms')
-        with io.FileIO('buid_deps.ok', 'w') as file:
-            file.write('Build dependencies already installed')
+        os.system('./install-build-deps.sh --no-prompt --no-nacl --no-chromeos-fonts --no-syms && touch build_deps.ok')
 
 
 def gclient_sync():
@@ -511,19 +496,16 @@ def check_build_with_proprietary_codecs(proprietary_codecs, host_platform, targe
 
     if proprietary_codecs:
         print_info('Building ffmpeg with proprietary codecs...')
-        if not os.path.isfile('build_ffmpeg_proprietary_codecs.patch'):
-            print_info('Applying codecs patch with ac3 for {0}...'.format(host_platform))
-            # os.path.join
-            shutil.copy(os.path.join(PATH_BASE, 'patch', host_platform, 'build_ffmpeg_proprietary_codecs.patch'), os.getcwd())
-            # apply codecs patch
-            os.system('git apply --ignore-space-change --ignore-whitespace build_ffmpeg_proprietary_codecs.patch')
+        configure_args = '--enable-decoder=aac,ac3,aac3,h264,mp1,mp2,mp3,mpeg4,mpegvideo,msmpeg4v1,msmpeg4v2,msmpeg4v3,hevc,flv,dca,flac ' 
+        configure_args += '--enable-demuxer=aac,ac3,h264,mp3,mp4,m4v,mpegvideo,mpegts,mov,avi,flv,dts,dtshd,vc1,flac ' 
+        configure_args += '--enable-parser=aac,ac3,aac3,h261,h263,h264,mepgvideo,mpeg4video,mpegaudio,dca,hevc,vc1,flac ' 
 
         cygwin_linking_setup()
 
         print_info('Starting build...')
 
         # build ffmpeg
-        subprocess.check_call('./chromium/scripts/build_ffmpeg.py {0} {1}'.format(host_platform, target_arch), shell=True)
+        subprocess.check_call('./chromium/scripts/build_ffmpeg.py {0} {1} -- {2}'.format(host_platform, target_arch, configure_args), shell=True)
         # copy the new generated ffmpeg config
         print_info('Copying new ffmpeg configuration...')
         subprocess.call('./chromium/scripts/copy_config.sh', shell=True)
@@ -534,11 +516,6 @@ def check_build_with_proprietary_codecs(proprietary_codecs, host_platform, targe
         if 'CYGWIN_NT' in platform.system():
             print_info('Applying fix for error LNK2001: unresolved external symbol _ff_w64_guid_data')
             fix_external_symbol_ff_w64_guid_data()
-    else:
-        if os.path.isfile('build_ffmpeg_proprietary_codecs.patch'):
-            print_info('Restoring ffmpeg configuration to defaults...')
-            os.system('git clean -df')
-            os.system('git checkout -- .')
 
 
 def replace_in_file(file_name, search_string, replace_string):
