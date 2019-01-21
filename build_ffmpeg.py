@@ -86,9 +86,16 @@ def main():
 
         setup_chromium_depot_tools(nw_version)
 
+        nw_deps = urllib2.urlopen('https://raw.githubusercontent.com/nwjs/nw.js/nw-v{}/DEPS'.format(nw_version))
+        match = re.search(r"'nw_src_revision'\s*:\s*'([0-9a-fA-F]+)'", nw_deps.read())
+        if not match:
+            print_error('Error finding chromium.src version matching nw.js version {}'.format(nw_version))
+            sys.exit(1)
+        nw_src_revision = match.group(1)
+
         clone_chromium_source_code(nw_version)
 
-        reset_chromium_src_to_nw_version(nw_version)
+        reset_chromium_src_to_nw_version(nw_version, nw_src_revision)
 
         generate_build_and_deps_files()
 
@@ -239,15 +246,14 @@ def setup_chromium_depot_tools(nw_version):
 
 def clone_chromium_source_code(nw_version):
     os.chdir(PATH_BUILD)
-    print_info('Cloning Chromium source code for nw-{0} in {1}'.format(nw_version, os.getcwd()))
-    os.system('git clone --depth=1 -b nw-v{0} --single-branch {1} src'.format(
-        nw_version, 'https://github.com/nwjs/chromium.src.git'))
+    print_info('Cloning Chromium source code in {}'.format(os.getcwd()))
+    os.system('git clone --single-branch {} src'.format('https://github.com/nwjs/chromium.src.git'))
 
 
-def reset_chromium_src_to_nw_version(nw_version):
+def reset_chromium_src_to_nw_version(nw_version, nw_src_revision):
     os.chdir(PATH_SRC)
-    print_info('Hard source code reset to nw {0} specified version'.format(nw_version))
-    os.system('git reset --hard tags/nw-v{0}'.format(nw_version))
+    print_info('Hard source code reset to nw {} specified revision {}'.format(nw_version, nw_src_revision))
+    os.system('git reset --hard {0}'.format(nw_src_revision))
 
 
 def get_min_deps(deps_str):
