@@ -76,7 +76,6 @@ def main():
         proprietary_codecs = args.proprietary_codecs
         if proprietary_codecs and platform.system() == 'Windows' and not 'CYGWIN_NT' in platform.system():
             print_warning('Script needs to be executed under CygWin to build FFmpeg \nwith proprietary codecs on Windows environments, \nread https://github.com/iteufel/nwjs-ffmpeg-prebuilt/blob/master/guides/build_windows.md\nExiting...')
-            sys.exit(1)
 
         print_info('Building ffmpeg for {0} on {1} for {2}, proprietary_codecs = {3}'.format(nw_version, host_platform, target_cpu, proprietary_codecs))
 
