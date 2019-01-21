@@ -429,7 +429,7 @@ def install_build_deps():
 def gclient_sync():
     os.chdir(PATH_SRC)
     print_info('Syncing with gclient...')
-    os.system('gclient sync --no-history')
+    os.system('gclient sync --no-history --reset')
 
 
 def build(target_cpu):
@@ -503,6 +503,9 @@ def check_build_with_proprietary_codecs(proprietary_codecs, host_platform, targe
         cygwin_linking_setup()
 
         print_info('Starting build...')
+
+        # prevent HAVE_EBP_AVAILABLE from going missing
+        subprocess.check_call("sed -i \"s;r'(#define HAVE_EBP_AVAILABLE \[01\])';'(#define HAVE_EBP_AVAILABLE you will never find me)';\" ./chromium/scripts/build_ffmpeg.py", shell=True)
 
         # build ffmpeg
         subprocess.check_call('./chromium/scripts/build_ffmpeg.py {0} {1} -- {2}'.format(host_platform, target_arch, configure_args), shell=True)
