@@ -1,14 +1,20 @@
 version: 1.0.{build}
 image: Visual Studio 2017
 install:
-- cmd: >-
-    choco install -y python2
-
-    pip install pywin32
+- choco install -y python2
+- pip install pywin32
+- >-
+    C:/cygwin64/setup-x86_64.exe 
+    -qnNdO -R C:/cygwin64 -s http://cygwin.mirror.constant.com -l C:/cygwin/var/cache/setup
+    -P yasm -P diffutils
 build_script:
-- cmd: >-
-    python build_ffmpeg.py --target_arch x64
-
-    python build_ffmpeg.py --target_arch ia32
+- cd "C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC"
+- vcvarsall.bat amd64
+- cd "C:/projects/nwjs-ffmpeg-prebuilt"
+- C:/cygwin64/bin/bash.exe -c 'python build_ffmpeg.py --target_arch x64 -pc'
+- cd "C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC"
+- vcvarsall.bat amd64_x86
+- cd "C:/projects/nwjs-ffmpeg-prebuilt"
+- C:/cygwin64/bin/bash.exe -c 'python build_ffmpeg.py --target_arch ia32 -pc'
 artifacts:
 - path: releases/*.zip
