@@ -232,8 +232,7 @@ def setup_chromium_depot_tools(nw_version, nw_src_revision):
 def clone_chromium_source_code(nw_version):
     os.chdir(PATH_BUILD)
     print_info('Cloning Chromium source code in {}'.format(os.getcwd()))
-    #os.system('git clone --single-branch {} src'.format('https://github.com/nwjs/chromium.src.git'))
-    os.system('git clone --single-branch {} src'.format('/srv'))
+    os.system('git clone --single-branch {} src'.format('https://github.com/nwjs/chromium.src.git'))
 
 
 def reset_chromium_src_to_nw_version(nw_version, nw_src_revision):
